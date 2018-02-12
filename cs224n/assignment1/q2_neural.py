@@ -46,7 +46,7 @@ def forward_backward_prop(X, labels, params, dimensions):
     y = s.dot(W2) + b2
      
     prob = softmax( y )
-    cost = -np.sum(  np.log(prob ) * labels ) #/M
+    #/M
     print cost
     
     ### END YOUR CODE

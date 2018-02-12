@@ -83,10 +83,13 @@ def softmaxCostAndGradient(predicted, target, outputVectors, dataset):
     #print yhat.shape
     
     gradPred = outputVectors.T.dot( yhat )
-    #print gradPred.shape
+    #gradPred = outputVectors[target]*yhat[target]
+    #print outputVectors.shape, yhat.shape
     
-    #we change the shape (V,) => (V,1) and (d,) => (d,1)
+    #we change the shape (V,) => (V,1) and (d,) => (d,1) to get grad shape => ( V, d )
     grad = yhat.reshape(-1,1).dot( predicted.reshape(-1,1).T )
+    #print ( grad.shape )
+    #grad = yhat[target] * outputVectors[target]
     ### END YOUR CODE
 
     return cost, gradPred, grad
@@ -125,8 +128,35 @@ def negSamplingCostAndGradient(predicted, target, outputVectors, dataset,
 
     ### YOUR CODE HERE
     #raise NotImplementedError
+    cost = 0
+    gradPred = np.zeros_like( predicted )
+    grad     = np.zeros_like( outputVectors )
+    
     negative_smaple_outputVectors = outputVectors[ indices ]
-    cost, gradPred, grad = softmaxCostAndGradient(predicted, 0, negative_smaple_outputVectors, dataset)
+    #cost is -log( sigmoid(score)) - sum( log( sigmoid(-scores_neg ) ))
+    #u0 = negative_smaple_outputVectors[ 0 ] #because we put the first index as target; ref line 126
+    #cost = -np.log( sigmoid(u0.dot(predicted) ) ) - np.sum( np.log( sigmoid( -1*negative_smaple_outputVectors[1:].dot(predicted) ) ) )
+    
+    yhat = sigmoid( negative_smaple_outputVectors.dot(predicted) )    
+        
+    cost = -np.log(yhat[0]) - np.sum( np.log(1-yhat[1:]) )
+
+    yhat[0] -= 1 #similar to yhat[target] -= 1 in softmax. 
+    
+    gradPred = negative_smaple_outputVectors.T.dot(yhat)
+    #print (gradPred)
+    #grad = S1.dot(predicted)
+    grad_neg = yhat.reshape(-1,1).dot( predicted.reshape(-1,1).T )
+    #print (grad.shape)
+    #grad[indices] = grad_neg
+    
+    
+    #We need to add the grad_neg to grads at the appropriate index.
+    #for i,u in enumerate(indices) :
+    #    grad[u] += grad_neg[i]  
+    #ref: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.ufunc.at.html
+    np.add.at( grad, indices, grad_neg ) #NOTE: this is not the same as grad[indices] += grad_neg because indices may have duplicates
+    
     ### END YOUR CODE
 
     return cost, gradPred, grad
@@ -163,12 +193,12 @@ def skipgram(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
     #print ("gradOut", gradOut.shape)
     ### YOUR CODE HERE
     #raise NotImplementedError
-    currentWord_index = tokens[currentWord]
+    currentWord_index = tokens[currentWord] #word to index
     predicted = inputVectors[ currentWord_index ]
     context_index = [ tokens[c] for c in contextWords ]
     
     for target_index in context_index :
-        cost_one, gradPred, grad = softmaxCostAndGradient(predicted, target_index, outputVectors, dataset)
+        cost_one, gradPred, grad = word2vecCostAndGradient(predicted, target_index, outputVectors, dataset)
         cost    += cost_one
         gradIn[currentWord_index]  += gradPred
         gradOut     += grad
@@ -257,7 +287,7 @@ def test_word2vec():
     gradcheck_naive(lambda vec: word2vec_sgd_wrapper(
         skipgram, dummy_tokens, vec, dataset, 5, negSamplingCostAndGradient),
         dummy_vectors)
-        
+    
     print "\n==== Gradient check for CBOW      ===="
     gradcheck_naive(lambda vec: word2vec_sgd_wrapper(
         cbow, dummy_tokens, vec, dataset, 5, softmaxCostAndGradient),
